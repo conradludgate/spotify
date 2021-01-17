@@ -10,6 +10,7 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
 	config := &clientcredentials.Config{
 		ClientID:     os.Getenv("SPOTIFY_ID"),
 		ClientSecret: os.Getenv("SPOTIFY_SECRET"),
@@ -21,7 +22,8 @@ func main() {
 	}
 
 	client := spotify.Authenticator{}.NewClient(token)
-	tracks, err := client.GetPlaylistTracks("57qttz6pK881sjxj2TAEEo")
+
+	tracks, err := client.GetPlaylistTracks(ctx, "57qttz6pK881sjxj2TAEEo")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -29,7 +31,7 @@ func main() {
 	log.Printf("Playlist has %d total tracks", tracks.Total)
 	for page := 1; ; page++ {
 		log.Printf("  Page %d has %d tracks", page, len(tracks.Tracks))
-		err = client.NextPage(tracks)
+		err = client.NextPage(ctx, tracks)
 		if err == spotify.ErrNoMorePages {
 			break
 		}
