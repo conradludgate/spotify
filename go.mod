@@ -1,6 +1,6 @@
-module github.com/zmb3/spotify
+module github.com/strideynet/spotify
 
-go 1.14
+go 1.15
 
 require (
 	github.com/stretchr/testify v1.7.0
