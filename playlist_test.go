@@ -428,7 +428,10 @@ func TestReorderPlaylistRequest(t *testing.T) {
 		// unmarshal the JSON into a map[string]interface{}
 		// so we can test for existence of certain keys
 		var body map[string]interface{}
-		json.NewDecoder(req.Body).Decode(&body)
+		err := json.NewDecoder(req.Body).Decode(&body)
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
 
 		if start, ok := body["range_start"]; ok {
 			if start != float64(3) {
@@ -455,10 +458,13 @@ func TestReorderPlaylistRequest(t *testing.T) {
 	})
 	defer server.Close()
 
-	client.ReorderPlaylistTracks(context.Background(), "playlist", PlaylistReorderOptions{
+	_, err := client.ReorderPlaylistTracks(context.Background(), "playlist", PlaylistReorderOptions{
 		RangeStart:   3,
 		InsertBefore: 8,
 	})
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
 }
 
 func TestSetPlaylistImage(t *testing.T) {
