@@ -143,7 +143,7 @@ func New(opts ...AuthenticatorOption) *Authenticator {
 // contextWithHTTPClient returns a context with a value set to override the oauth2 http client as Spotify does not
 // support HTTP/2
 //
-// see: https://github.com/zmb3/spotify/issues/20
+// see: https://github.com/conradludgate/spotify/issues/20
 func contextWithHTTPClient(ctx context.Context) context.Context {
 	tr := &http.Transport{
 		TLSNextProto: map[string]func(authority string, c *tls.Conn) http.RoundTripper{},

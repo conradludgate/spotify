@@ -26,7 +26,7 @@ func TestGetShowEpisodes(t *testing.T) {
 	c, s := testClientFile(http.StatusOK, "test_data/get_show_episodes.txt")
 	defer s.Close()
 
-	r, err := c.GetShowEpisodes(context.Background(),"1234")
+	r, err := c.GetShowEpisodes(context.Background(), "1234")
 	if err != nil {
 		t.Fatal(err)
 	}
