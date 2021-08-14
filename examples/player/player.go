@@ -10,12 +10,12 @@ package main
 import (
 	"context"
 	"fmt"
-	spotifyauth "github.com/zmb3/spotify/v2/auth"
+	spotifyauth "github.com/conradludgate/spotify/v2/auth"
 	"log"
 	"net/http"
 	"strings"
 
-	"github.com/zmb3/spotify/v2"
+	"github.com/conradludgate/spotify/v2"
 )
 
 // redirectURI is the OAuth redirect URI for the application.
@@ -34,10 +34,10 @@ var html = `
 `
 
 var (
-	auth  = spotifyauth.New(
+	auth = spotifyauth.New(
 		spotifyauth.WithRedirectURL(redirectURI),
 		spotifyauth.WithScopes(spotifyauth.ScopeUserReadCurrentlyPlaying, spotifyauth.ScopeUserReadPlaybackState, spotifyauth.ScopeUserModifyPlaybackState),
-		)
+	)
 	ch    = make(chan *spotify.Client)
 	state = "abc123"
 )

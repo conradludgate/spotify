@@ -10,11 +10,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/zmb3/spotify/v2/auth"
+	"github.com/conradludgate/spotify/v2/auth"
 	"log"
 	"net/http"
 
-	"github.com/zmb3/spotify/v2"
+	"github.com/conradludgate/spotify/v2"
 )
 
 // redirectURI is the OAuth redirect URI for the application.

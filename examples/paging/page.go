@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"github.com/zmb3/spotify/v2"
-	spotifyauth "github.com/zmb3/spotify/v2/auth"
+	"github.com/conradludgate/spotify/v2"
+	spotifyauth "github.com/conradludgate/spotify/v2/auth"
 	"golang.org/x/oauth2/clientcredentials"
 	"log"
 	"os"
