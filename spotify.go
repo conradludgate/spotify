@@ -250,41 +250,11 @@ func retryDuration(resp *http.Response) time.Duration {
 }
 
 func (c *Client) get(ctx context.Context, url string, result interface{}) error {
-	for {
-		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-		if c.acceptLanguage != "" {
-			req.Header.Set("Accept-Language", c.acceptLanguage)
-		}
-		if err != nil {
-			return err
-		}
-		resp, err := c.http.Do(req)
-		if err != nil {
-			return err
-		}
-
-		defer resp.Body.Close()
-
-		if resp.StatusCode == rateLimitExceededStatusCode && c.autoRetry {
-			time.Sleep(retryDuration(resp))
-			continue
-		}
-		if resp.StatusCode == http.StatusNoContent {
-			return nil
-		}
-		if resp.StatusCode != http.StatusOK {
-			return c.decodeError(resp)
-		}
-
-		err = json.NewDecoder(resp.Body).Decode(result)
-		if err != nil {
-			return err
-		}
-
-		break
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return err
 	}
-
-	return nil
+	return c.execute(req, result, http.StatusOK)
 }
 
 // NewReleases gets a list of new album releases featured in Spotify.
