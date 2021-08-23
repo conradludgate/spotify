@@ -2,8 +2,9 @@ package spotify
 
 import (
 	"context"
-	"fmt"
 	"strings"
+
+	"github.com/conradludgate/go-http"
 )
 
 // AudioFeatures contains various high-level acoustic attributes
@@ -109,13 +110,14 @@ const (
 // Objects are returned in the order requested.  If an object
 // is not found, a nil value is returned in the appropriate position.
 func (c *Client) GetAudioFeatures(ctx context.Context, ids ...ID) ([]*AudioFeatures, error) {
-	url := fmt.Sprintf("%saudio-features?ids=%s", c.baseURL, strings.Join(toStringSlice(ids), ","))
-
 	temp := struct {
 		F []*AudioFeatures `json:"audio_features"`
 	}{}
 
-	err := c.get(ctx, url, &temp)
+	_, err := c.http.Get(
+		http.Path("audio-features"),
+		http.Param("ids", strings.Join(toStringSlice(ids), ",")),
+	).Send(ctx, http.JSON(&temp))
 	if err != nil {
 		return nil, err
 	}

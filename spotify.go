@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/http"
+	stdhttp "net/http"
 	"strconv"
 	"time"
+
+	"github.com/conradludgate/go-http"
 
 	"golang.org/x/oauth2"
 )
@@ -34,28 +36,42 @@ const (
 	// defaultRetryDurationS helps us fix an apparent server bug whereby we will
 	// be told to retry but not be given a wait-interval.
 	defaultRetryDuration = time.Second * 5
-
-	// rateLimitExceededStatusCode is the code that the server returns when our
-	// request frequency is too high.
-	rateLimitExceededStatusCode = 429
 )
 
 // Client is a client for working with the Spotify Web API.
 // It is best to create this using spotify.New()
 type Client struct {
-	http    *http.Client
-	baseURL string
-
-	autoRetry      bool
-	acceptLanguage string
+	http *http.Client
 }
 
 type ClientOption func(client *Client)
 
+type retryTransport struct {
+	Base stdhttp.RoundTripper
+}
+
+func (r retryTransport) RoundTrip(req *stdhttp.Request) (*stdhttp.Response, error) {
+	for {
+		resp, err := r.Base.RoundTrip(req)
+		if err == nil && resp.StatusCode == stdhttp.StatusTooManyRequests {
+			time.Sleep(retryDuration(resp))
+			continue
+		}
+
+		return resp, err
+	}
+}
+
 // WithRetry configures the Spotify API client to automatically retry requests that fail due to ratelimiting.
-func WithRetry(shouldRetry bool) ClientOption {
+func WithRetry() ClientOption {
 	return func(client *Client) {
-		client.autoRetry = shouldRetry
+		baseClient := client.http.BaseClient()
+		transport := baseClient.Transport
+		if transport == nil {
+			transport = stdhttp.DefaultTransport
+		}
+		baseClient.Transport = retryTransport{transport}
+		client.http.Apply(http.BaseClient(baseClient))
 	}
 }
 
@@ -63,24 +79,27 @@ func WithRetry(shouldRetry bool) ClientOption {
 // staging or other alternative environment.
 func WithBaseURL(url string) ClientOption {
 	return func(client *Client) {
-		client.baseURL = url
+		client.http.Apply(http.URLString(url))
 	}
 }
 
 // WithAcceptLanguage configures the client to provide the accept language header on all requests.
 func WithAcceptLanguage(lang string) ClientOption {
 	return func(client *Client) {
-		client.acceptLanguage = lang
+		client.http.Apply(http.AddHeader("Accept-Language", lang))
 	}
 }
 
 // New returns a client for working with the Spotify Web API.
 // The provided httpClient must provide Authentication with the requests.
 // The auth package may be used to generate a suitable client.
-func New(httpClient *http.Client, opts ...ClientOption) *Client {
+func New(httpClient *stdhttp.Client, opts ...ClientOption) *Client {
 	c := &Client{
-		http:    httpClient,
-		baseURL: "https://api.spotify.com/v1/",
+		http: http.NewClient(
+			http.URLString("https://api.spotify.com/v1/"),
+			http.BaseClient(httpClient),
+			http.PreResponseMiddlewares(errorDecoder{}),
+		),
 	}
 
 	for _, opt := range opts {
@@ -124,16 +143,7 @@ type Image struct {
 
 // Download downloads the image and writes its data to the specified io.Writer.
 func (i Image) Download(dst io.Writer) error {
-	resp, err := http.Get(i.URL)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	// TODO: get Content-Type from header?
-	if resp.StatusCode != http.StatusOK {
-		return errors.New("Couldn't download image - HTTP" + strconv.Itoa(resp.StatusCode))
-	}
-	_, err = io.Copy(dst, resp.Body)
+	_, err := http.NewClient().Get(http.URLString(i.URL)).Send(context.Background(), http.WriteBodyTo(dst))
 	return err
 }
 
@@ -149,9 +159,14 @@ func (e Error) Error() string {
 	return e.Message
 }
 
-// decodeError decodes an Error from an io.Reader.
-func (c *Client) decodeError(resp *http.Response) error {
-	responseBody, err := ioutil.ReadAll(resp.Body)
+type errorDecoder struct{}
+
+func (d errorDecoder) ProcessResponse(resp *http.Response) error {
+	if resp.StatusCode.Type() == http.StatusTypeSuccess {
+		return nil
+	}
+
+	responseBody, err := ioutil.ReadAll(resp)
 	if err != nil {
 		return err
 	}
@@ -184,60 +199,7 @@ func (c *Client) decodeError(resp *http.Response) error {
 	return e.E
 }
 
-// shouldRetry determines whether the status code indicates that the
-// previous operation should be retried at a later time
-func shouldRetry(status int) bool {
-	return status == http.StatusAccepted || status == http.StatusTooManyRequests
-}
-
-// isFailure determines whether the code indicates failure
-func isFailure(code int, validCodes []int) bool {
-	for _, item := range validCodes {
-		if item == code {
-			return false
-		}
-	}
-	return true
-}
-
-// `execute` executes a non-GET request. `needsStatus` describes other HTTP
-// status codes that will be treated as success. Note that we allow all 200s
-// even if there are additional success codes that represent success.
-func (c *Client) execute(req *http.Request, result interface{}, needsStatus ...int) error {
-	if c.acceptLanguage != "" {
-		req.Header.Set("Accept-Language", c.acceptLanguage)
-	}
-	for {
-		resp, err := c.http.Do(req)
-		if err != nil {
-			return err
-		}
-		defer resp.Body.Close()
-
-		if c.autoRetry && shouldRetry(resp.StatusCode) {
-			time.Sleep(retryDuration(resp))
-			continue
-		}
-		if resp.StatusCode == http.StatusNoContent {
-			return nil
-		}
-		if (resp.StatusCode >= 300 ||
-			resp.StatusCode < 200) &&
-			isFailure(resp.StatusCode, needsStatus) {
-			return c.decodeError(resp)
-		}
-
-		if result != nil {
-			if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-				return err
-			}
-		}
-		break
-	}
-	return nil
-}
-
-func retryDuration(resp *http.Response) time.Duration {
+func retryDuration(resp *stdhttp.Response) time.Duration {
 	raw := resp.Header.Get("Retry-After")
 	if raw == "" {
 		return defaultRetryDuration
@@ -249,24 +211,14 @@ func retryDuration(resp *http.Response) time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
-func (c *Client) get(ctx context.Context, url string, result interface{}) error {
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return err
-	}
-	return c.execute(req, result, http.StatusOK)
-}
-
 // NewReleases gets a list of new album releases featured in Spotify.
 // Supported options: Country, Limit, Offset
 func (c *Client) NewReleases(ctx context.Context, opts ...RequestOption) (albums *SimpleAlbumPage, err error) {
-	spotifyURL := c.baseURL + "browse/new-releases"
-	if params := processOptions(opts...).urlParams.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
-
 	var objmap map[string]*json.RawMessage
-	err = c.get(ctx, spotifyURL, &objmap)
+	_, err = c.http.Get(
+		http.Path("browse", "new-releases"),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&objmap))
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +234,7 @@ func (c *Client) NewReleases(ctx context.Context, opts ...RequestOption) (albums
 
 // Token gets the client's current token.
 func (c *Client) Token() (*oauth2.Token, error) {
-	transport, ok := c.http.Transport.(*oauth2.Transport)
+	transport, ok := c.http.BaseClient().Transport.(*oauth2.Transport)
 	if !ok {
 		return nil, errors.New("spotify: client not backed by oauth2 transport")
 	}

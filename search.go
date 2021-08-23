@@ -3,6 +3,8 @@ package spotify
 import (
 	"context"
 	"strings"
+
+	"github.com/conradludgate/go-http"
 )
 
 const (
@@ -114,11 +116,8 @@ func (c *Client) Search(ctx context.Context, query string, t SearchType, opts ..
 	v.Set("q", query)
 	v.Set("type", t.encode())
 
-	spotifyURL := c.baseURL + "search?" + v.Encode()
-
 	var result SearchResult
-
-	err := c.get(ctx, spotifyURL, &result)
+	_, err := c.http.Get(http.Path("search"), http.Params(v)).Send(ctx, http.JSON(&result))
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +130,8 @@ func (c *Client) NextArtistResults(ctx context.Context, s *SearchResult) error {
 	if s.Artists == nil || s.Artists.Next == "" {
 		return ErrNoMorePages
 	}
-	return c.get(ctx, s.Artists.Next, s)
+	_, err := c.http.Get(http.URLString(s.Artists.Next)).Send(ctx, http.JSON(s))
+	return err
 }
 
 // PreviousArtistResults loads the previous page of artists into the specified search result.
@@ -139,7 +139,8 @@ func (c *Client) PreviousArtistResults(ctx context.Context, s *SearchResult) err
 	if s.Artists == nil || s.Artists.Previous == "" {
 		return ErrNoMorePages
 	}
-	return c.get(ctx, s.Artists.Previous, s)
+	_, err := c.http.Get(http.URLString(s.Artists.Previous)).Send(ctx, http.JSON(s))
+	return err
 }
 
 // NextAlbumResults loads the next page of albums into the specified search result.
@@ -147,7 +148,8 @@ func (c *Client) NextAlbumResults(ctx context.Context, s *SearchResult) error {
 	if s.Albums == nil || s.Albums.Next == "" {
 		return ErrNoMorePages
 	}
-	return c.get(ctx, s.Albums.Next, s)
+	_, err := c.http.Get(http.URLString(s.Albums.Next)).Send(ctx, http.JSON(s))
+	return err
 }
 
 // PreviousAlbumResults loads the previous page of albums into the specified search result.
@@ -155,7 +157,8 @@ func (c *Client) PreviousAlbumResults(ctx context.Context, s *SearchResult) erro
 	if s.Albums == nil || s.Albums.Previous == "" {
 		return ErrNoMorePages
 	}
-	return c.get(ctx, s.Albums.Previous, s)
+	_, err := c.http.Get(http.URLString(s.Albums.Previous)).Send(ctx, http.JSON(s))
+	return err
 }
 
 // NextPlaylistResults loads the next page of playlists into the specified search result.
@@ -163,7 +166,8 @@ func (c *Client) NextPlaylistResults(ctx context.Context, s *SearchResult) error
 	if s.Playlists == nil || s.Playlists.Next == "" {
 		return ErrNoMorePages
 	}
-	return c.get(ctx, s.Playlists.Next, s)
+	_, err := c.http.Get(http.URLString(s.Playlists.Next)).Send(ctx, http.JSON(s))
+	return err
 }
 
 // PreviousPlaylistResults loads the previous page of playlists into the specified search result.
@@ -171,7 +175,8 @@ func (c *Client) PreviousPlaylistResults(ctx context.Context, s *SearchResult) e
 	if s.Playlists == nil || s.Playlists.Previous == "" {
 		return ErrNoMorePages
 	}
-	return c.get(ctx, s.Playlists.Previous, s)
+	_, err := c.http.Get(http.URLString(s.Playlists.Previous)).Send(ctx, http.JSON(s))
+	return err
 }
 
 // PreviousTrackResults loads the previous page of tracks into the specified search result.
@@ -179,7 +184,8 @@ func (c *Client) PreviousTrackResults(ctx context.Context, s *SearchResult) erro
 	if s.Tracks == nil || s.Tracks.Previous == "" {
 		return ErrNoMorePages
 	}
-	return c.get(ctx, s.Tracks.Previous, s)
+	_, err := c.http.Get(http.URLString(s.Tracks.Previous)).Send(ctx, http.JSON(s))
+	return err
 }
 
 // NextTrackResults loads the next page of tracks into the specified search result.
@@ -187,5 +193,6 @@ func (c *Client) NextTrackResults(ctx context.Context, s *SearchResult) error {
 	if s.Tracks == nil || s.Tracks.Next == "" {
 		return ErrNoMorePages
 	}
-	return c.get(ctx, s.Tracks.Next, s)
+	_, err := c.http.Get(http.URLString(s.Tracks.Next)).Send(ctx, http.JSON(s))
+	return err
 }

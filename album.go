@@ -3,10 +3,11 @@ package spotify
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/conradludgate/go-http"
 )
 
 // SimpleAlbum contains basic data about an album.
@@ -104,15 +105,13 @@ type SavedAlbum struct {
 // GetAlbum gets Spotify catalog information for a single album, given its Spotify ID.
 // Supported options: Market
 func (c *Client) GetAlbum(ctx context.Context, id ID, opts ...RequestOption) (*FullAlbum, error) {
-	spotifyURL := fmt.Sprintf("%salbums/%s", c.baseURL, id)
-
-	if params := processOptions(opts...).urlParams.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
-
 	var a FullAlbum
 
-	err := c.get(ctx, spotifyURL, &a)
+	_, err := c.http.Get(
+		http.Path("albums", string(id)),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&a))
+
 	if err != nil {
 		return nil, err
 	}
@@ -140,16 +139,17 @@ func (c *Client) GetAlbums(ctx context.Context, ids []ID, opts ...RequestOption)
 	if len(ids) > 20 {
 		return nil, errors.New("spotify: exceeded maximum number of albums")
 	}
-	params := processOptions(opts...).urlParams
-	params.Set("ids", strings.Join(toStringSlice(ids), ","))
-
-	spotifyURL := fmt.Sprintf("%salbums?%s", c.baseURL, params.Encode())
 
 	var a struct {
 		Albums []*FullAlbum `json:"albums"`
 	}
 
-	err := c.get(ctx, spotifyURL, &a)
+	_, err := c.http.Get(
+		http.Path("albums"),
+		http.Params(processOptions(opts...).urlParams),
+		http.Param("ids", strings.Join(toStringSlice(ids), ",")),
+	).Send(ctx, http.JSON(&a))
+
 	if err != nil {
 		return nil, err
 	}
@@ -194,14 +194,13 @@ func (at AlbumType) encode() string {
 //
 // Supported Options: Market, Limit, Offset
 func (c *Client) GetAlbumTracks(ctx context.Context, id ID, opts ...RequestOption) (*SimpleTrackPage, error) {
-	spotifyURL := fmt.Sprintf("%salbums/%s/tracks", c.baseURL, id)
-
-	if params := processOptions(opts...).urlParams.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
-
 	var result SimpleTrackPage
-	err := c.get(ctx, spotifyURL, &result)
+
+	_, err := c.http.Get(
+		http.Path("albums", string(id), "tracks"),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&result))
+
 	if err != nil {
 		return nil, err
 	}

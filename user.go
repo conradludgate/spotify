@@ -3,10 +3,9 @@ package spotify
 import (
 	"context"
 	"errors"
-	"fmt"
-	"net/http"
-	"net/url"
 	"strings"
+
+	"github.com/conradludgate/go-http"
 )
 
 // User contains the basic, publicly available information about a Spotify user.
@@ -57,11 +56,9 @@ type PrivateUser struct {
 // GetUsersPublicProfile gets public profile information about a
 // Spotify User.  It does not require authentication.
 func (c *Client) GetUsersPublicProfile(ctx context.Context, userID ID) (*User, error) {
-	spotifyURL := c.baseURL + "users/" + string(userID)
-
 	var user User
 
-	err := c.get(ctx, spotifyURL, &user)
+	_, err := c.http.Get(http.Path("users", string(userID))).Send(ctx, http.JSON(&user))
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +81,7 @@ func (c *Client) GetUsersPublicProfile(ctx context.Context, userID ID) (*User, e
 func (c *Client) CurrentUser(ctx context.Context) (*PrivateUser, error) {
 	var result PrivateUser
 
-	err := c.get(ctx, c.baseURL+"me", &result)
+	_, err := c.http.Get(http.Path("me")).Send(ctx, http.JSON(&result))
 	if err != nil {
 		return nil, err
 	}
@@ -99,14 +96,12 @@ func (c *Client) CurrentUser(ctx context.Context) (*PrivateUser, error) {
 //
 // Supported options: Limit, Offset
 func (c *Client) CurrentUsersShows(ctx context.Context, opts ...RequestOption) (*SavedShowPage, error) {
-	spotifyURL := c.baseURL + "me/shows"
-	if params := processOptions(opts...).urlParams.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
-
 	var result SavedShowPage
 
-	err := c.get(ctx, spotifyURL, &result)
+	_, err := c.http.Get(
+		http.Path("me", "shows"),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&result))
 	if err != nil {
 		return nil, err
 	}
@@ -121,14 +116,12 @@ func (c *Client) CurrentUsersShows(ctx context.Context, opts ...RequestOption) (
 //
 // Supported options: Limit, Country, Offset
 func (c *Client) CurrentUsersTracks(ctx context.Context, opts ...RequestOption) (*SavedTrackPage, error) {
-	spotifyURL := c.baseURL + "me/tracks"
-	if params := processOptions(opts...).urlParams.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
-
 	var result SavedTrackPage
 
-	err := c.get(ctx, spotifyURL, &result)
+	_, err := c.http.Get(
+		http.Path("me", "tracks"),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&result))
 	if err != nil {
 		return nil, err
 	}
@@ -188,12 +181,14 @@ func (c *Client) CurrentUserFollows(ctx context.Context, t string, ids ...ID) ([
 	if t != "artist" && t != "user" {
 		return nil, errors.New("spotify: t must be 'artist' or 'user'")
 	}
-	spotifyURL := fmt.Sprintf("%sme/following/contains?type=%s&ids=%s",
-		c.baseURL, t, strings.Join(toStringSlice(ids), ","))
 
 	var result []bool
 
-	err := c.get(ctx, spotifyURL, &result)
+	_, err := c.http.Get(
+		http.Path("me", "following", "contains"),
+		http.Param("type", t),
+		http.Param("ids", strings.Join(toStringSlice(ids), ",")),
+	).Send(ctx, http.JSON(&result))
 	if err != nil {
 		return nil, err
 	}
@@ -205,41 +200,33 @@ func (c *Client) modifyFollowers(ctx context.Context, usertype string, follow bo
 	if l := len(ids); l == 0 || l > 50 {
 		return errors.New("spotify: Follow/Unfollow supports 1 to 50 IDs")
 	}
-	v := url.Values{}
-	v.Add("type", usertype)
-	v.Add("ids", strings.Join(toStringSlice(ids), ","))
-	spotifyURL := c.baseURL + "me/following?" + v.Encode()
-	method := "PUT"
+
+	method := http.Put
 	if !follow {
-		method = "DELETE"
+		method = http.Delete
 	}
-	req, err := http.NewRequestWithContext(ctx, method, spotifyURL, nil)
-	if err != nil {
-		return err
-	}
-	err = c.execute(req, nil, http.StatusNoContent)
-	if err != nil {
-		return err
-	}
-	return nil
+
+	_, err := c.http.NewRequest(method,
+		http.Path("me", "following"),
+		http.Param("type", usertype),
+		http.Param("ids", strings.Join(toStringSlice(ids), ",")),
+	).Send(ctx)
+
+	return err
 }
 
 // CurrentUsersFollowedArtists gets the current user's followed artists.
 // This call requires that the user has granted the ScopeUserFollowRead scope.
 // Supported options: Limit, After
 func (c *Client) CurrentUsersFollowedArtists(ctx context.Context, opts ...RequestOption) (*FullArtistCursorPage, error) {
-	spotifyURL := c.baseURL + "me/following"
-	v := processOptions(opts...).urlParams
-	v.Set("type", "artist")
-	if params := v.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
-
 	var result struct {
 		A FullArtistCursorPage `json:"artists"`
 	}
-
-	err := c.get(ctx, spotifyURL, &result)
+	_, err := c.http.Get(
+		http.Path("me", "following"),
+		http.Params(processOptions(opts...).urlParams),
+		http.Param("type", "artist"),
+	).Send(ctx, http.JSON(&result))
 	if err != nil {
 		return nil, err
 	}
@@ -252,14 +239,12 @@ func (c *Client) CurrentUsersFollowedArtists(ctx context.Context, opts ...Reques
 //
 // Supported options: Market, Limit, Offset
 func (c *Client) CurrentUsersAlbums(ctx context.Context, opts ...RequestOption) (*SavedAlbumPage, error) {
-	spotifyURL := c.baseURL + "me/albums"
-	if params := processOptions(opts...).urlParams.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
-
 	var result SavedAlbumPage
 
-	err := c.get(ctx, spotifyURL, &result)
+	_, err := c.http.Get(
+		http.Path("me", "albums"),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&result))
 	if err != nil {
 		return nil, err
 	}
@@ -277,14 +262,12 @@ func (c *Client) CurrentUsersAlbums(ctx context.Context, opts ...RequestOption) 
 //
 // Supported options: Limit, Offset
 func (c *Client) CurrentUsersPlaylists(ctx context.Context, opts ...RequestOption) (*SimplePlaylistPage, error) {
-	spotifyURL := c.baseURL + "me/playlists"
-	if params := processOptions(opts...).urlParams.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
-
 	var result SimplePlaylistPage
 
-	err := c.get(ctx, spotifyURL, &result)
+	_, err := c.http.Get(
+		http.Path("me", "playlists"),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&result))
 	if err != nil {
 		return nil, err
 	}
@@ -297,14 +280,12 @@ func (c *Client) CurrentUsersPlaylists(ctx context.Context, opts ...RequestOptio
 //
 // Supported options: Limit, Timerange
 func (c *Client) CurrentUsersTopArtists(ctx context.Context, opts ...RequestOption) (*FullArtistPage, error) {
-	spotifyURL := c.baseURL + "me/top/artists"
-	if params := processOptions(opts...).urlParams.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
-
 	var result FullArtistPage
 
-	err := c.get(ctx, spotifyURL, &result)
+	_, err := c.http.Get(
+		http.Path("me", "top", "artists"),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&result))
 	if err != nil {
 		return nil, err
 	}
@@ -318,17 +299,14 @@ func (c *Client) CurrentUsersTopArtists(ctx context.Context, opts ...RequestOpti
 //
 // Supported options: Limit, Timerange, Offset
 func (c *Client) CurrentUsersTopTracks(ctx context.Context, opts ...RequestOption) (*FullTrackPage, error) {
-	spotifyURL := c.baseURL + "me/top/tracks"
-	if params := processOptions(opts...).urlParams.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
-
 	var result FullTrackPage
 
-	err := c.get(ctx, spotifyURL, &result)
+	_, err := c.http.Get(
+		http.Path("me", "top", "tracks"),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&result))
 	if err != nil {
 		return nil, err
 	}
-
 	return &result, nil
 }

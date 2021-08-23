@@ -2,8 +2,9 @@ package spotify
 
 import (
 	"context"
-	"fmt"
 	"strings"
+
+	"github.com/conradludgate/go-http"
 )
 
 // SimpleArtist contains basic info about an artist.
@@ -33,10 +34,9 @@ type FullArtist struct {
 
 // GetArtist gets Spotify catalog information for a single artist, given its Spotify ID.
 func (c *Client) GetArtist(ctx context.Context, id ID) (*FullArtist, error) {
-	spotifyURL := fmt.Sprintf("%sartists/%s", c.baseURL, id)
-
 	var a FullArtist
-	err := c.get(ctx, spotifyURL, &a)
+
+	_, err := c.http.Get(http.Path("artists", string(id))).Send(ctx, http.JSON(&a))
 	if err != nil {
 		return nil, err
 	}
@@ -50,13 +50,14 @@ func (c *Client) GetArtist(ctx context.Context, id ID) (*FullArtist, error) {
 // in the result will be nil.  Duplicate IDs will result in duplicate artists
 // in the result.
 func (c *Client) GetArtists(ctx context.Context, ids ...ID) ([]*FullArtist, error) {
-	spotifyURL := fmt.Sprintf("%sartists?ids=%s", c.baseURL, strings.Join(toStringSlice(ids), ","))
-
 	var a struct {
 		Artists []*FullArtist
 	}
 
-	err := c.get(ctx, spotifyURL, &a)
+	_, err := c.http.Get(
+		http.Path("artists"),
+		http.Param("ids", strings.Join(toStringSlice(ids), ",")),
+	).Send(ctx, http.JSON(&a))
 	if err != nil {
 		return nil, err
 	}
@@ -68,13 +69,15 @@ func (c *Client) GetArtists(ctx context.Context, ids ...ID) ([]*FullArtist, erro
 // tracks in a particular country.  It returns a maximum of 10 tracks.  The
 // country is specified as an ISO 3166-1 alpha-2 country code.
 func (c *Client) GetArtistsTopTracks(ctx context.Context, artistID ID, country string) ([]FullTrack, error) {
-	spotifyURL := fmt.Sprintf("%sartists/%s/top-tracks?country=%s", c.baseURL, artistID, country)
-
 	var t struct {
 		Tracks []FullTrack `json:"tracks"`
 	}
 
-	err := c.get(ctx, spotifyURL, &t)
+	_, err := c.http.Get(
+		http.Path("artists", string(artistID), "top-tracks"),
+		http.Param("country", country),
+	).Send(ctx, http.JSON(&t))
+
 	if err != nil {
 		return nil, err
 	}
@@ -87,13 +90,11 @@ func (c *Client) GetArtistsTopTracks(ctx context.Context, artistID ID, country s
 // listening history.  This function returns up to 20 artists that are considered
 // related to the specified artist.
 func (c *Client) GetRelatedArtists(ctx context.Context, id ID) ([]FullArtist, error) {
-	spotifyURL := fmt.Sprintf("%sartists/%s/related-artists", c.baseURL, id)
-
 	var a struct {
 		Artists []FullArtist `json:"artists"`
 	}
 
-	err := c.get(ctx, spotifyURL, &a)
+	_, err := c.http.Get(http.Path("artists", string(id), "related-artists")).Send(ctx, http.JSON(&a))
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +111,6 @@ func (c *Client) GetRelatedArtists(ctx context.Context, id ID) ([]FullArtist, er
 //
 // Supported options: Market
 func (c *Client) GetArtistAlbums(ctx context.Context, artistID ID, ts []AlbumType, opts ...RequestOption) (*SimpleAlbumPage, error) {
-	spotifyURL := fmt.Sprintf("%sartists/%s/albums", c.baseURL, artistID)
 	// add optional query string if options were specified
 	values := processOptions(opts...).urlParams
 
@@ -122,13 +122,12 @@ func (c *Client) GetArtistAlbums(ctx context.Context, artistID ID, ts []AlbumTyp
 		values.Set("include_groups", strings.Join(types, ","))
 	}
 
-	if query := values.Encode(); query != "" {
-		spotifyURL += "?" + query
-	}
-
 	var p SimpleAlbumPage
 
-	err := c.get(ctx, spotifyURL, &p)
+	_, err := c.http.Get(
+		http.Path("artists", string(artistID), "albums"),
+		http.Params(values),
+	).Send(ctx, http.JSON(&p))
 	if err != nil {
 		return nil, err
 	}

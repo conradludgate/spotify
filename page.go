@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+
+	"github.com/conradludgate/go-http"
 )
 
 // ErrNoMorePages is the error returned when you attempt to get the next
@@ -110,39 +112,27 @@ func (b *basePage) canPage() {}
 // NextPage fetches the next page of items and writes them into p.
 // It returns ErrNoMorePages if p already contains the last page.
 func (c *Client) NextPage(ctx context.Context, p pageable) error {
-	if p == nil || reflect.ValueOf(p).IsNil() {
-		return fmt.Errorf("spotify: p must be a non-nil pointer to a page")
-	}
-
-	val := reflect.ValueOf(p).Elem()
-	field := val.FieldByName("Next")
-	nextURL := field.Interface().(string)
-
-	if len(nextURL) == 0 {
-		return ErrNoMorePages
-	}
-
-	// Zero out the page so that we can overwrite it in the next
-	// call to get. This is necessary because encoding/json does
-	// not clear out existing values when unmarshaling JSON null.
-	zero := reflect.Zero(val.Type())
-	val.Set(zero)
-
-	return c.get(ctx, nextURL, p)
+	return c.page(ctx, p, "Next")
 }
 
 // PreviousPage fetches the previous page of items and writes them into p.
 // It returns ErrNoMorePages if p already contains the last page.
 func (c *Client) PreviousPage(ctx context.Context, p pageable) error {
+	return c.page(ctx, p, "Previous")
+}
+
+// PreviousPage fetches the previous page of items and writes them into p.
+// It returns ErrNoMorePages if p already contains the last page.
+func (c *Client) page(ctx context.Context, p pageable, dir string) error {
 	if p == nil || reflect.ValueOf(p).IsNil() {
 		return fmt.Errorf("spotify: p must be a non-nil pointer to a page")
 	}
 
 	val := reflect.ValueOf(p).Elem()
-	field := val.FieldByName("Previous")
-	prevURL := field.Interface().(string)
+	field := val.FieldByName(dir)
+	pageURL := field.Interface().(string)
 
-	if len(prevURL) == 0 {
+	if len(pageURL) == 0 {
 		return ErrNoMorePages
 	}
 
@@ -152,5 +142,6 @@ func (c *Client) PreviousPage(ctx context.Context, p pageable) error {
 	zero := reflect.Zero(val.Type())
 	val.Set(zero)
 
-	return c.get(ctx, prevURL, p)
+	_, err := c.http.Get(http.URLString(pageURL)).Send(ctx, http.JSON(p))
+	return err
 }

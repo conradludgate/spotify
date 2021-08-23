@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
+
+	"github.com/conradludgate/go-http"
 )
 
 // SimpleTrack contains basic info about a track.
@@ -121,15 +122,12 @@ func (t *SimpleTrack) TimeDuration() time.Duration {
 //
 // Supported options: Market
 func (c *Client) GetTrack(ctx context.Context, id ID, opts ...RequestOption) (*FullTrack, error) {
-	spotifyURL := c.baseURL + "tracks/" + string(id)
-
 	var t FullTrack
 
-	if params := processOptions(opts...).urlParams.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
-
-	err := c.get(ctx, spotifyURL, &t)
+	_, err := c.http.Get(
+		http.Path("tracks", string(id)),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&t))
 	if err != nil {
 		return nil, err
 	}
@@ -151,15 +149,14 @@ func (c *Client) GetTracks(ctx context.Context, ids []ID, opts ...RequestOption)
 		return nil, errors.New("spotify: FindTracks supports up to 50 tracks")
 	}
 
-	params := processOptions(opts...).urlParams
-	params.Set("ids", strings.Join(toStringSlice(ids), ","))
-	spotifyURL := c.baseURL + "tracks?" + params.Encode()
-
 	var t struct {
 		Tracks []*FullTrack `json:"tracks"`
 	}
 
-	err := c.get(ctx, spotifyURL, &t)
+	_, err := c.http.Get(
+		http.Path("tracks"),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&t))
 	if err != nil {
 		return nil, err
 	}

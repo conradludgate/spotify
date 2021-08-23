@@ -2,7 +2,8 @@ package spotify
 
 import (
 	"context"
-	"fmt"
+
+	"github.com/conradludgate/go-http"
 )
 
 // AudioAnalysis contains a detailed audio analysis for a single track
@@ -98,11 +99,9 @@ type AnalysisTrack struct {
 // GetAudioAnalysis queries the Spotify web API for an audio analysis of a
 // single track.
 func (c *Client) GetAudioAnalysis(ctx context.Context, id ID) (*AudioAnalysis, error) {
-	url := fmt.Sprintf("%saudio-analysis/%s", c.baseURL, id)
-
 	temp := AudioAnalysis{}
 
-	err := c.get(ctx, url, &temp)
+	_, err := c.http.Get(http.Path("audio-analysis", string(id))).Send(ctx, http.JSON(&temp))
 	if err != nil {
 		return nil, err
 	}

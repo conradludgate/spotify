@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/conradludgate/go-http"
 )
 
 type SavedShow struct {
@@ -172,14 +174,12 @@ func (e *EpisodePage) ReleaseDateTime() time.Time {
 // API reference: https://developer.spotify.com/documentation/web-api/reference/#endpoint-get-a-show
 // Supported options: Market
 func (c *Client) GetShow(ctx context.Context, id ID, opts ...RequestOption) (*FullShow, error) {
-	spotifyURL := c.baseURL + "shows/" + string(id)
-	if params := processOptions(opts...).urlParams.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
-
 	var result FullShow
 
-	err := c.get(ctx, spotifyURL, &result)
+	_, err := c.http.Get(
+		http.Path("shows", string(id)),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&result))
 	if err != nil {
 		return nil, err
 	}
@@ -190,15 +190,13 @@ func (c *Client) GetShow(ctx context.Context, id ID, opts ...RequestOption) (*Fu
 // GetShowEpisodes retrieves paginated episode information about a specific show..
 // API reference: https://developer.spotify.com/documentation/web-api/reference/#endpoint-get-a-shows-episodes
 // Supported options: Market, Limit, Offset
-func (c *Client) GetShowEpisodes(ctx context.Context,  id string, opts ...RequestOption) (*SimpleEpisodePage, error) {
-	spotifyURL := c.baseURL + "shows/" + id + "/episodes"
-	if params := processOptions(opts...).urlParams.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
-
+func (c *Client) GetShowEpisodes(ctx context.Context, id string, opts ...RequestOption) (*SimpleEpisodePage, error) {
 	var result SimpleEpisodePage
 
-	err := c.get(ctx, spotifyURL, &result)
+	_, err := c.http.Get(
+		http.Path("shows", string(id), "episodes"),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&result))
 	if err != nil {
 		return nil, err
 	}

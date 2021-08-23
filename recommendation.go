@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/conradludgate/go-http"
 )
 
 // Seeds contains IDs of artists, genres and/or tracks
@@ -88,13 +90,12 @@ func (c *Client) GetRecommendations(ctx context.Context, seeds Seeds, trackAttri
 	setSeedValues(seeds, v)
 	setTrackAttributesValues(trackAttributes, v)
 
-	spotifyURL := c.baseURL + "recommendations?" + v.Encode()
-
 	var recommendations Recommendations
-	err := c.get(ctx, spotifyURL, &recommendations)
-	if err != nil {
-		return nil, err
-	}
+
+	_, err := c.http.Get(
+		http.Path("recommendations"),
+		http.Params(v),
+	).Send(ctx, http.JSON(&recommendations))
 
 	return &recommendations, err
 }
@@ -102,14 +103,16 @@ func (c *Client) GetRecommendations(ctx context.Context, seeds Seeds, trackAttri
 // GetAvailableGenreSeeds retrieves a list of available genres seed parameter values for
 // recommendations.
 func (c *Client) GetAvailableGenreSeeds(ctx context.Context) ([]string, error) {
-	spotifyURL := c.baseURL + "recommendations/available-genre-seeds"
+	genreSeeds := struct {
+		Genres []string `json:"genres"`
+	}{}
 
-	genreSeeds := make(map[string][]string)
-
-	err := c.get(ctx, spotifyURL, &genreSeeds)
+	_, err := c.http.Get(
+		http.Path("recommendations", "available-genre-seeds"),
+	).Send(ctx, http.JSON(&genreSeeds))
 	if err != nil {
 		return nil, err
 	}
 
-	return genreSeeds["genres"], nil
+	return genreSeeds.Genres, nil
 }

@@ -1,13 +1,12 @@
 package spotify
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"net/http"
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/conradludgate/go-http"
 )
 
 // PlayerDevice contains information about a device that a user can play music on
@@ -135,7 +134,7 @@ func (c *Client) PlayerDevices(ctx context.Context) ([]PlayerDevice, error) {
 		PlayerDevices []PlayerDevice `json:"devices"`
 	}
 
-	err := c.get(ctx, c.baseURL+"me/player/devices", &result)
+	_, err := c.http.Get(http.Path("me", "player", "devices")).Send(ctx, http.JSON(&result))
 	if err != nil {
 		return nil, err
 	}
@@ -148,14 +147,12 @@ func (c *Client) PlayerDevices(ctx context.Context) ([]PlayerDevice, error) {
 //
 // Supported options: Market
 func (c *Client) PlayerState(ctx context.Context, opts ...RequestOption) (*PlayerState, error) {
-	spotifyURL := c.baseURL + "me/player"
-	if params := processOptions(opts...).urlParams.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
-
 	var result PlayerState
 
-	err := c.get(ctx, spotifyURL, &result)
+	_, err := c.http.Get(
+		http.Path("me", "player"),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&result))
 	if err != nil {
 		return nil, err
 	}
@@ -171,19 +168,12 @@ func (c *Client) PlayerState(ctx context.Context, opts ...RequestOption) (*Playe
 //
 // Supported options: Market
 func (c *Client) PlayerCurrentlyPlaying(ctx context.Context, opts ...RequestOption) (*CurrentlyPlaying, error) {
-	spotifyURL := c.baseURL + "me/player/currently-playing"
-
-	if params := processOptions(opts...).urlParams.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "GET", spotifyURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
 	var result CurrentlyPlaying
-	err = c.execute(req, &result, http.StatusNoContent)
+
+	_, err := c.http.Get(
+		http.Path("me", "player", "currently-playing"),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&result))
 	if err != nil {
 		return nil, err
 	}
@@ -200,9 +190,8 @@ func (c *Client) PlayerRecentlyPlayed(ctx context.Context) ([]RecentlyPlayedItem
 // PlayerRecentlyPlayedOpt is like PlayerRecentlyPlayed, but it accepts
 // additional options for sorting and filtering the results.
 func (c *Client) PlayerRecentlyPlayedOpt(ctx context.Context, opt *RecentlyPlayedOptions) ([]RecentlyPlayedItem, error) {
-	spotifyURL := c.baseURL + "me/player/recently-played"
+	v := url.Values{}
 	if opt != nil {
-		v := url.Values{}
 		if opt.Limit != 0 {
 			v.Set("limit", strconv.FormatInt(int64(opt.Limit), 10))
 		}
@@ -212,13 +201,13 @@ func (c *Client) PlayerRecentlyPlayedOpt(ctx context.Context, opt *RecentlyPlaye
 		if opt.AfterEpochMs != 0 {
 			v.Set("after", strconv.FormatInt(int64(opt.AfterEpochMs), 10))
 		}
-		if params := v.Encode(); params != "" {
-			spotifyURL += "?" + params
-		}
 	}
 
 	result := RecentlyPlayedResult{}
-	err := c.get(ctx, spotifyURL, &result)
+	_, err := c.http.Get(
+		http.Path("me", "player", "recently-played"),
+		http.Params(v),
+	).Send(ctx, http.JSON(&result))
 	if err != nil {
 		return nil, err
 	}
@@ -244,16 +233,10 @@ func (c *Client) TransferPlayback(ctx context.Context, deviceID ID, play bool) e
 		Play:     play,
 	}
 
-	buf := new(bytes.Buffer)
-	err := json.NewEncoder(buf).Encode(reqData)
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.baseURL+"me/player", buf)
-	if err != nil {
-		return err
-	}
-	err = c.execute(req, nil, http.StatusNoContent)
+	_, err := c.http.Put(
+		http.Path("me", "player"),
+		http.JSON(reqData),
+	).Send(ctx)
 	if err != nil {
 		return err
 	}
@@ -269,28 +252,17 @@ func (c *Client) Play(ctx context.Context) error {
 
 // PlayOpt is like Play but with more options
 func (c *Client) PlayOpt(ctx context.Context, opt *PlayOptions) error {
-	spotifyURL := c.baseURL + "me/player/play"
-	buf := new(bytes.Buffer)
-
+	v := url.Values{}
 	if opt != nil {
-		v := url.Values{}
 		if opt.DeviceID != nil {
 			v.Set("device_id", opt.DeviceID.String())
 		}
-		if params := v.Encode(); params != "" {
-			spotifyURL += "?" + params
-		}
-
-		err := json.NewEncoder(buf).Encode(opt)
-		if err != nil {
-			return err
-		}
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, spotifyURL, buf)
-	if err != nil {
-		return err
-	}
-	err = c.execute(req, nil, http.StatusNoContent)
+	_, err := c.http.Put(
+		http.Path("me", "player", "play"),
+		http.Params(v),
+		http.JSON(opt),
+	).Send(ctx)
 	if err != nil {
 		return err
 	}
@@ -308,22 +280,16 @@ func (c *Client) Pause(ctx context.Context) error {
 //
 // Only expects PlayOptions.DeviceID, all other options will be ignored
 func (c *Client) PauseOpt(ctx context.Context, opt *PlayOptions) error {
-	spotifyURL := c.baseURL + "me/player/pause"
-
+	v := url.Values{}
 	if opt != nil {
-		v := url.Values{}
 		if opt.DeviceID != nil {
 			v.Set("device_id", opt.DeviceID.String())
 		}
-		if params := v.Encode(); params != "" {
-			spotifyURL += "?" + params
-		}
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, spotifyURL, nil)
-	if err != nil {
-		return err
-	}
-	err = c.execute(req, nil, http.StatusNoContent)
+	_, err := c.http.Put(
+		http.Path("me", "player", "pause"),
+		http.Params(v),
+	).Send(ctx)
 	if err != nil {
 		return err
 	}
@@ -342,7 +308,6 @@ func (c *Client) QueueSong(ctx context.Context, trackID ID) error {
 // Only expects PlayOptions.DeviceID, all other options will be ignored
 func (c *Client) QueueSongOpt(ctx context.Context, trackID ID, opt *PlayOptions) error {
 	uri := "spotify:track:" + trackID
-	spotifyURL := c.baseURL + "me/player/queue"
 	v := url.Values{}
 
 	v.Set("uri", uri.String())
@@ -353,16 +318,13 @@ func (c *Client) QueueSongOpt(ctx context.Context, trackID ID, opt *PlayOptions)
 		}
 	}
 
-	if params := v.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
+	_, err := c.http.Post(
+		http.Path("me", "player", "queue"),
+		http.Params(v),
+		http.AddHeader("Content-Type", "application/json"),
+	).Send(ctx)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, spotifyURL, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	return c.execute(req, nil, http.StatusNoContent)
+	return err
 }
 
 // Next skips to the next track in the user's queue in the user's
@@ -376,26 +338,19 @@ func (c *Client) Next(ctx context.Context) error {
 //
 // Only expects PlayOptions.DeviceID, all other options will be ignored
 func (c *Client) NextOpt(ctx context.Context, opt *PlayOptions) error {
-	spotifyURL := c.baseURL + "me/player/next"
-
+	v := url.Values{}
 	if opt != nil {
-		v := url.Values{}
 		if opt.DeviceID != nil {
 			v.Set("device_id", opt.DeviceID.String())
 		}
-		if params := v.Encode(); params != "" {
-			spotifyURL += "?" + params
-		}
 	}
-	req, err := http.NewRequest(http.MethodPost, spotifyURL, nil)
-	if err != nil {
-		return err
-	}
-	err = c.execute(req, nil, http.StatusNoContent)
-	if err != nil {
-		return err
-	}
-	return nil
+
+	_, err := c.http.Post(
+		http.Path("me", "player", "next"),
+		http.Params(v),
+	).Send(ctx)
+
+	return err
 }
 
 // Previous skips to the Previous track in the user's queue in the user's
@@ -409,26 +364,19 @@ func (c *Client) Previous(ctx context.Context) error {
 //
 // Only expects PlayOptions.DeviceID, all other options will be ignored
 func (c *Client) PreviousOpt(ctx context.Context, opt *PlayOptions) error {
-	spotifyURL := c.baseURL + "me/player/previous"
-
+	v := url.Values{}
 	if opt != nil {
-		v := url.Values{}
 		if opt.DeviceID != nil {
 			v.Set("device_id", opt.DeviceID.String())
 		}
-		if params := v.Encode(); params != "" {
-			spotifyURL += "?" + params
-		}
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, spotifyURL, nil)
-	if err != nil {
-		return err
-	}
-	err = c.execute(req, nil, http.StatusNoContent)
-	if err != nil {
-		return err
-	}
-	return nil
+
+	_, err := c.http.Post(
+		http.Path("me", "player", "previous"),
+		http.Params(v),
+	).Send(ctx)
+
+	return err
 }
 
 // Seek to the given position in the user’s currently playing track.
@@ -524,25 +472,16 @@ func (c *Client) ShuffleOpt(ctx context.Context, shuffle bool, opt *PlayOptions)
 }
 
 func (c *Client) playerFuncWithOpt(ctx context.Context, urlSuffix string, values url.Values, opt *PlayOptions) error {
-	spotifyURL := c.baseURL + urlSuffix
-
 	if opt != nil {
 		if opt.DeviceID != nil {
 			values.Set("device_id", opt.DeviceID.String())
 		}
 	}
 
-	if params := values.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
+	_, err := c.http.Put(
+		http.Path(urlSuffix),
+		http.Params(values),
+	).Send(ctx)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, spotifyURL, nil)
-	if err != nil {
-		return err
-	}
-	err = c.execute(req, nil, http.StatusNoContent)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }

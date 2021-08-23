@@ -3,9 +3,9 @@ package spotify
 import (
 	"context"
 	"errors"
-	"fmt"
-	"net/http"
 	"strings"
+
+	"github.com/conradludgate/go-http"
 )
 
 // UserHasTracks checks if one or more tracks are saved to the current user's
@@ -24,11 +24,12 @@ func (c *Client) libraryContains(ctx context.Context, typ string, ids ...ID) ([]
 	if l := len(ids); l == 0 || l > 50 {
 		return nil, errors.New("spotify: supports 1 to 50 IDs per call")
 	}
-	spotifyURL := fmt.Sprintf("%sme/%s/contains?ids=%s", c.baseURL, typ, strings.Join(toStringSlice(ids), ","))
-
 	var result []bool
 
-	err := c.get(ctx, spotifyURL, &result)
+	_, err := c.http.Get(
+		http.Path("me", typ, "contains"),
+		http.Param("ids", strings.Join(toStringSlice(ids), ",")),
+	).Send(ctx, http.JSON(&result))
 	if err != nil {
 		return nil, err
 	}
@@ -70,16 +71,14 @@ func (c *Client) modifyLibrary(ctx context.Context, typ string, add bool, ids ..
 	if l := len(ids); l == 0 || l > 50 {
 		return errors.New("spotify: this call supports 1 to 50 IDs per call")
 	}
-	spotifyURL := fmt.Sprintf("%sme/%s?ids=%s", c.baseURL, typ, strings.Join(toStringSlice(ids), ","))
-	method := "DELETE"
+	method := http.Delete
 	if add {
-		method = "PUT"
+		method = http.Put
 	}
-	req, err := http.NewRequest(method, spotifyURL, nil)
-	if err != nil {
-		return err
-	}
-	err = c.execute(req, nil)
+	_, err := c.http.NewRequest(method,
+		http.Path("me", typ),
+		http.Param("ids", strings.Join(toStringSlice(ids), ",")),
+	).Send(ctx)
 	if err != nil {
 		return err
 	}

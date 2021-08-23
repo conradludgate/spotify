@@ -10,9 +10,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/zmb3/spotify/v2/auth"
 	"log"
 	"net/http"
+
+	spotifyauth "github.com/zmb3/spotify/v2/auth"
 
 	"github.com/zmb3/spotify/v2"
 )

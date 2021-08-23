@@ -2,7 +2,8 @@ package spotify
 
 import (
 	"context"
-	"fmt"
+
+	"github.com/conradludgate/go-http"
 )
 
 // Category is used by Spotify to tag items in.  For example, on the Spotify
@@ -24,32 +25,25 @@ type Category struct {
 // Supported options: Country, Locale
 func (c *Client) GetCategory(ctx context.Context, id string, opts ...RequestOption) (Category, error) {
 	cat := Category{}
-	spotifyURL := fmt.Sprintf("%sbrowse/categories/%s", c.baseURL, id)
-	if params := processOptions(opts...).urlParams.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
 
-	err := c.get(ctx, spotifyURL, &cat)
-	if err != nil {
-		return cat, err
-	}
-
+	_, err := c.http.Get(
+		http.Path("browse", "categories", id),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&cat))
 	return cat, err
 }
 
 // GetCategoryPlaylists gets a list of Spotify playlists tagged with a particular category.
 // Supported options: Country, Limit, Offset
 func (c *Client) GetCategoryPlaylists(ctx context.Context, catID string, opts ...RequestOption) (*SimplePlaylistPage, error) {
-	spotifyURL := fmt.Sprintf("%sbrowse/categories/%s/playlists", c.baseURL, catID)
-	if params := processOptions(opts...).urlParams.Encode(); params != "" {
-		spotifyURL += "?" + params
-	}
-
 	wrapper := struct {
 		Playlists SimplePlaylistPage `json:"playlists"`
 	}{}
 
-	err := c.get(ctx, spotifyURL, &wrapper)
+	_, err := c.http.Get(
+		http.Path("browse", "categories", catID, "playlists"),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&wrapper))
 	if err != nil {
 		return nil, err
 	}
@@ -61,16 +55,14 @@ func (c *Client) GetCategoryPlaylists(ctx context.Context, catID string, opts ..
 //
 // Supported options: Country, Locale, Limit, Offset
 func (c *Client) GetCategories(ctx context.Context, opts ...RequestOption) (*CategoryPage, error) {
-	spotifyURL := c.baseURL + "browse/categories"
-	if query := processOptions(opts...).urlParams.Encode(); query != "" {
-		spotifyURL += "?" + query
-	}
-
 	wrapper := struct {
 		Categories CategoryPage `json:"categories"`
 	}{}
 
-	err := c.get(ctx, spotifyURL, &wrapper)
+	_, err := c.http.Get(
+		http.Path("browse", "categories"),
+		http.Params(processOptions(opts...).urlParams),
+	).Send(ctx, http.JSON(&wrapper))
 	if err != nil {
 		return nil, err
 	}
